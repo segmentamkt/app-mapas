@@ -1,0 +1,44 @@
+{
+  "id": "demo-south-america",
+  "title": "DEMO: Disponibilidad del Servicio X",
+  "region": "South America",
+  "categories": {
+    "disponible": { "label": "DISPONIBLE", "color": "#2ecc71" },
+    "no_disponible": { "label": "NO DISPONIBLE", "color": "#e74c3c" }
+  },
+  "neutralColor": "#e9e9e9",
+  "countries": {
+    "BRA": "disponible",
+    "ARG": "disponible",
+    "CHL": "disponible",
+    "URY": "disponible",
+    "COL": "disponible",
+    "ECU": "disponible",
+    "GUY": "disponible",
+    "SUR": "disponible",
+    "BOL": "no_disponible",
+    "PRY": "no_disponible",
+    "PER": "no_disponible",
+    "VEN": "no_disponible"
+  },
+  "revealOrder": [
+    "BRA",
+    "ARG",
+    "CHL",
+    "URY",
+    "COL",
+    "ECU",
+    "GUY",
+    "SUR",
+    "BOL",
+    "PRY",
+    "PER",
+    "VEN"
+  ],
+  "timing": {
+    "fps": 30,
+    "introSeconds": 1,
+    "perCountrySeconds": 0.6,
+    "outroSeconds": 2
+  }
+}

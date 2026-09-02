@@ -1,0 +1,23 @@
+{
+  "name": "app-mapas",
+  "version": "1.0.0",
+  "description": "Generador de videos de mapas animados (pais por pais) a partir de un archivo de configuracion.",
+  "main": "index.js",
+  "scripts": {
+    "build:countries": "node scripts/build-countries-data.mjs",
+    "studio": "remotion studio src/index.ts",
+    "render": "node scripts/render.mjs",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/segmentamkt/app-mapas.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/segmentamkt/app-mapas/issues"
+  },
+  "homepage": "https://github.com/segmentamkt/app-mapas#readme"
+}
