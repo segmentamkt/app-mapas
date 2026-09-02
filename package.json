@@ -19,5 +19,16 @@
   "bugs": {
     "url": "https://github.com/segmentamkt/app-mapas/issues"
   },
-  "homepage": "https://github.com/segmentamkt/app-mapas#readme"
+  "homepage": "https://github.com/segmentamkt/app-mapas#readme",
+  "dependencies": {
+    "@remotion/cli": "^4.0.520",
+    "@remotion/renderer": "^4.0.520",
+    "d3-geo": "^3.1.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "remotion": "^4.0.520",
+    "topojson-client": "^3.1.0",
+    "world-atlas": "^2.0.2",
+    "world-countries": "^5.1.0"
+  }
 }

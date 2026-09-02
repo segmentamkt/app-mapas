@@ -2,7 +2,7 @@
 // Renders a video config (data/videos/<file>.json) into out/<id>.mp4
 // Usage: npm run render -- data/videos/demo-south-america.json
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -29,11 +29,28 @@ writeFileSync(propsPath, JSON.stringify({ config }));
 
 const entry = path.join(root, "src", "index.ts");
 
+// Some sandboxes block Remotion's own Chrome-Headless-Shell download. Reuse
+// a pre-installed Chromium if we can find one instead of downloading.
+const candidateBrowserPaths = [
+  process.env.REMOTION_BROWSER_EXECUTABLE,
+  "/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell",
+  "/opt/pw-browsers/chromium/chrome-linux/chrome",
+].filter(Boolean);
+const browserExecutable = candidateBrowserPaths.find((p) => existsSync(p));
+
+const args = [
+  "remotion",
+  "render",
+  entry,
+  "MapVideo",
+  outPath,
+  `--props=${propsPath}`,
+];
+if (browserExecutable) {
+  args.push(`--browser-executable=${browserExecutable}`);
+}
+
 console.log(`Renderizando "${config.title}" -> ${outPath}`);
-const result = spawnSync(
-  "npx",
-  ["remotion", "render", entry, "MapVideo", outPath, `--props=${propsPath}`],
-  { stdio: "inherit", cwd: root }
-);
+const result = spawnSync("npx", args, { stdio: "inherit", cwd: root });
 
 process.exit(result.status ?? 1);
