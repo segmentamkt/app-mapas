@@ -1,12 +1,25 @@
 import React, { useMemo } from "react";
-import { geoMercator, geoPath, geoBounds, GeoPath } from "d3-geo";
+import { geoMercator, geoPath, GeoPath } from "d3-geo";
 import { feature } from "topojson-client";
 import { staticFile } from "remotion";
 import worldTopo from "world-atlas/countries-110m.json";
 import { ccn3ToCca3, matchesRegion, getCountry } from "../lib/countries";
 import { VideoConfig } from "../lib/types";
 import { focusStateAt, revealedCountAt } from "../lib/timeline";
-import { LonLatBox, boxToPolygonFeature, lerpBox, padBox } from "../lib/camera";
+import {
+  LonLatBox,
+  WORLD_BOX,
+  boxToPolygonFeature,
+  lerpBox,
+  padBox,
+  safeFeatureBox,
+  unionBoxes,
+} from "../lib/camera";
+
+// Antarctica is included in the topojson but its landmass at extreme
+// southern latitudes forces Mercator to zoom out so far that every other
+// country looks tiny, so it's dropped entirely rather than rendered.
+const EXCLUDED_CCA3 = new Set(["ATA"]);
 
 interface CountryFeature {
   id: string;
@@ -29,6 +42,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   width,
   height,
 }) => {
+  const isWorld = config.region.toLowerCase() === "world";
+
   const { features, regionBox, keyframeBoxes } = useMemo(() => {
     const topoObjects = (worldTopo as { objects: Record<string, unknown> })
       .objects;
@@ -37,22 +52,18 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       topoObjects.countries as never
     ) as unknown as { features: Array<{ id: string; geometry: GeoJSON.Geometry }> };
 
-    const withCca3: CountryFeature[] = geo.features.map((f) => ({
-      ...f,
-      cca3: ccn3ToCca3(String(f.id)),
-    }));
+    const withCca3: CountryFeature[] = geo.features
+      .map((f) => ({ ...f, cca3: ccn3ToCca3(String(f.id)) }))
+      .filter((f) => !f.cca3 || !EXCLUDED_CCA3.has(f.cca3));
 
-    const inRegion =
-      config.region.toLowerCase() === "world"
-        ? withCca3
-        : withCca3.filter((f) => f.cca3 && matchesRegion(f.cca3, config.region));
+    const inRegion = isWorld
+      ? withCca3
+      : withCca3.filter((f) => f.cca3 && matchesRegion(f.cca3, config.region));
 
     const fitFeatures = inRegion.length > 0 ? inRegion : withCca3;
-    const [[minLon, minLat], [maxLon, maxLat]] = geoBounds({
-      type: "FeatureCollection",
-      features: fitFeatures,
-    } as never);
-    const regionBox: LonLatBox = { minLon, minLat, maxLon, maxLat };
+    const regionBox: LonLatBox = isWorld
+      ? WORLD_BOX
+      : unionBoxes(fitFeatures.map((f) => safeFeatureBox(f)));
 
     const featureByCca3 = new Map<string, CountryFeature>();
     for (const f of withCca3) if (f.cca3) featureByCca3.set(f.cca3, f);
@@ -61,16 +72,15 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     // bounds around revealOrder[i-1], the box the camera lands on once
     // that country reveals.
     const keyframeBoxes: LonLatBox[] = [regionBox];
-    for (const cca3 of config.revealOrder) {
-      const f = featureByCca3.get(cca3);
-      if (!f) {
-        keyframeBoxes.push(regionBox);
-        continue;
+    if (!isWorld) {
+      for (const cca3 of config.revealOrder) {
+        const f = featureByCca3.get(cca3);
+        if (!f) {
+          keyframeBoxes.push(regionBox);
+          continue;
+        }
+        keyframeBoxes.push(padBox(safeFeatureBox(f), 2.2, 10, 130, 70));
       }
-      const [[lo0, la0], [lo1, la1]] = geoBounds(f as never);
-      keyframeBoxes.push(
-        padBox({ minLon: lo0, minLat: la0, maxLon: lo1, maxLat: la1 }, 5, 8)
-      );
     }
 
     return { features: withCca3, regionBox, keyframeBoxes, featureByCca3 };
@@ -83,15 +93,21 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     [config, frame]
   );
 
+  // World-scoped videos span every continent, so per-country zoom would mean
+  // wild jumps and, for countries with far-flung territory (the US with
+  // Alaska, say), a camera window that reaches deep into Mercator's
+  // polar distortion. Keep those on one static, well-fit world view and
+  // reserve the travel/zoom camera for regional videos, where every
+  // country sits in a similar, moderate latitude band.
   const camBox = useMemo(() => {
-    if (focus.index < 0) return regionBox;
+    if (isWorld || focus.index < 0) return regionBox;
     return lerpBox(
       keyframeBoxes[focus.index],
       keyframeBoxes[focus.index + 1],
       focus.travelT
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [keyframeBoxes, focus.index, focus.travelT]);
+  }, [isWorld, keyframeBoxes, focus.index, focus.travelT]);
 
   const { projection, path } = useMemo(() => {
     const projection = geoMercator().fitExtent(
