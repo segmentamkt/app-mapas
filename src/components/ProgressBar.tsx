@@ -7,93 +7,102 @@ interface Props {
   frame: number;
 }
 
+/**
+ * Counter chips on the left, a segmented bar in the middle, "landed / total"
+ * on the right. Works with any number of categories, unlike a two-sided
+ * "VS" bar.
+ */
 export const ProgressBar: React.FC<Props> = ({ config, frame }) => {
   const { counts, total } = tallyAt(config, frame);
   const keys = Object.keys(config.categories);
-  const isBinary = keys.length === 2;
-
-  const segments = keys.map((key) => ({
-    key,
-    color: config.categories[key].color,
-    pct: total > 0 ? (counts[key] / total) * 100 : 100 / keys.length,
-  }));
+  const target = config.revealOrder.length;
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-      {isBinary && (
-        <Label
-          text={`${config.categories[keys[0]].label} ${Math.round(
-            segments[0].pct
-          )}%`}
-          color={config.categories[keys[0]].color}
-        />
-      )}
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 18,
+        background: "rgba(8, 20, 31, 0.82)",
+        border: "2px solid rgba(255,255,255,0.10)",
+        borderRadius: 16,
+        padding: "12px 18px",
+      }}
+    >
+      <div style={{ display: "flex", gap: 16 }}>
+        {keys.map((key) => {
+          const def = config.categories[key];
+          return (
+            <div
+              key={key}
+              style={{ display: "flex", alignItems: "center", gap: 7 }}
+            >
+              <span
+                style={{
+                  color: def.color,
+                  fontSize: 30,
+                  fontWeight: 900,
+                  lineHeight: 1,
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                {counts[key] ?? 0}
+              </span>
+              <span
+                style={{
+                  color: def.color,
+                  fontSize: 13,
+                  fontWeight: 800,
+                  letterSpacing: 0.6,
+                  opacity: 0.95,
+                }}
+              >
+                {def.label}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
       <div
         style={{
           flex: 1,
-          height: 44,
-          borderRadius: 22,
+          height: 26,
+          borderRadius: 13,
           overflow: "hidden",
           display: "flex",
-          border: "3px solid #0d1117",
-          position: "relative",
+          background: "rgba(255,255,255,0.07)",
+          border: "2px solid rgba(0,0,0,0.45)",
         }}
       >
-        {segments.map((s) => (
-          <div
-            key={s.key}
-            style={{
-              width: `${s.pct}%`,
-              backgroundColor: s.color,
-              transition: "width 0.2s linear",
-            }}
-          />
-        ))}
-        {isBinary && (
-          <div
-            style={{
-              position: "absolute",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              background: "#f4b400",
-              color: "#111",
-              fontWeight: 900,
-              fontSize: 18,
-              padding: "4px 10px",
-              borderRadius: 8,
-              border: "2px solid #0d1117",
-            }}
-          >
-            VS
-          </div>
-        )}
+        {keys.map((key) => {
+          const pct = target > 0 ? ((counts[key] ?? 0) / target) * 100 : 0;
+          if (pct <= 0) return null;
+          return (
+            <div
+              key={key}
+              style={{
+                width: `${pct}%`,
+                background: config.categories[key].color,
+                boxShadow: "inset 0 -3px 0 rgba(0,0,0,0.22)",
+              }}
+            />
+          );
+        })}
       </div>
-      {isBinary && (
-        <Label
-          text={`${Math.round(segments[1].pct)}% ${
-            config.categories[keys[1]].label
-          }`}
-          color={config.categories[keys[1]].color}
-        />
-      )}
+
+      <span
+        style={{
+          color: "#e8f1f8",
+          fontSize: 20,
+          fontWeight: 900,
+          fontVariantNumeric: "tabular-nums",
+          minWidth: 74,
+          textAlign: "right",
+        }}
+      >
+        {total} / {target}
+      </span>
     </div>
   );
 };
-
-const Label: React.FC<{ text: string; color: string }> = ({
-  text,
-  color,
-}) => (
-  <span
-    style={{
-      color,
-      fontWeight: 900,
-      fontSize: 26,
-      whiteSpace: "nowrap",
-      textShadow: "0 2px 0 #0d1117",
-    }}
-  >
-    {text}
-  </span>
-);

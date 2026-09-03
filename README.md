@@ -34,6 +34,9 @@ No hace falta tocar código para un video nuevo — solo el JSON.
   "id": "nombre-del-video",
   "title": "Texto que aparece arriba del video",
   "region": "world | South America | Europe | ...",
+  "subtitle": "Línea chica opcional debajo del título",
+  "cameraMode": "zoom",
+  "showEyes": true,
   "categories": {
     "clave_a": { "label": "ETIQUETA A", "color": "#2ecc71", "mood": "calm" },
     "clave_b": { "label": "ETIQUETA B", "color": "#e74c3c", "mood": "angry" }
@@ -41,6 +44,7 @@ No hace falta tocar código para un video nuevo — solo el JSON.
   "neutralColor": "#e9e9e9",
   "countries": { "ARG": "clave_a", "BRA": "clave_b" },
   "revealOrder": ["ARG", "BRA"],
+  "scenes": { "BRA": { "seconds": 3, "zoom": 1.6 } },
   "timing": {
     "fps": 30,
     "introSeconds": 1,
@@ -58,9 +62,19 @@ No hace falta tocar código para un video nuevo — solo el JSON.
 - El orden de `revealOrder` define en qué momento la cámara viaja hacia ese
   país, se colorea con su bandera, la barra avanza y aparece en la lista
   lateral.
+- Se soportan **2 o más categorías** (por ejemplo LIBRE / RESTRINGIDO /
+  PROHIBIDO): la barra superior se segmenta con un color por categoría y los
+  contadores se muestran como chips.
 - `categories.<clave>.mood` controla las cejas/ojos del país mientras está
-  enfocado: `"angry"` (cejas rojas en V, para categorías tipo "prohibido"/
-  "baneado") o `"calm"` (por defecto).
+  enfocado: `"angry"` (cejas en V, para "prohibido"/"alto riesgo"),
+  `"worried"` (cejas levantadas) o `"calm"` (por defecto).
+- `cameraMode`: `"zoom"` (por defecto) viaja y hace zoom país por país;
+  `"static"` mantiene una vista fija de toda la región.
+- `showEyes`: `true` (por defecto) dibuja los ojos animados sobre el país
+  enfocado; `false` los apaga.
+- `scenes.<CCA3>`: overrides por país — `seconds` (duración de esa escena) y
+  `zoom` (1 = encuadre normal, 2 = el doble de cerca).
+- El `title` acepta `\n` para forzar saltos de línea.
 - `timing.perCountrySeconds` es el tiempo total por país; el motor reparte
   internamente ~45% en el viaje de cámara (ojos neutros, sin colorear) y el
   resto en el "aterrizaje" (bandera + ojos con el mood de la categoría).

@@ -3,71 +3,104 @@ import React from "react";
 interface EyesProps {
   cx: number;
   cy: number;
-  size: number; // roughly the eye radius, callers scale this per-country
-  mood: "neutral" | "calm" | "angry";
+  /** Eye radius in px; callers derive it from the country's on-screen size. */
+  size: number;
+  mood: "neutral" | "calm" | "worried" | "angry";
   color: string;
+  /** 0..1 pop-in progress. */
+  appear: number;
 }
 
-export const Eyes: React.FC<EyesProps> = ({ cx, cy, size, mood, color }) => {
-  const spacing = size * 1.3;
-  const eyeRx = size * 0.65;
-  const eyeRy = size * 0.8;
-  const browColor = mood === "neutral" ? "#2c3e50" : color;
+export const Eyes: React.FC<EyesProps> = ({
+  cx,
+  cy,
+  size,
+  mood,
+  color,
+  appear,
+}) => {
+  const s = size * (0.6 + 0.4 * appear);
+  const spacing = s * 1.25;
+  const eyeRx = s * 0.62;
+  const eyeRy = s * 0.78;
+  const browColor = mood === "neutral" ? "#26313d" : color;
+  const pupilShift = mood === "angry" ? eyeRy * 0.1 : eyeRy * 0.28;
 
   const eye = (ex: number) => (
-    <g key={ex}>
+    <g key={`eye-${ex}`}>
       <ellipse
         cx={ex}
         cy={cy}
         rx={eyeRx}
         ry={eyeRy}
-        fill="white"
+        fill="#ffffff"
         stroke="#0d1117"
-        strokeWidth={size * 0.08}
+        strokeWidth={Math.max(s * 0.09, 1)}
       />
-      <circle cx={ex} cy={cy + eyeRy * 0.25} r={eyeRy * 0.4} fill="#111" />
+      <circle cx={ex} cy={cy + pupilShift} r={eyeRy * 0.42} fill="#10161d" />
+      <circle
+        cx={ex - eyeRx * 0.22}
+        cy={cy + pupilShift - eyeRy * 0.18}
+        r={eyeRy * 0.13}
+        fill="#ffffff"
+        opacity={0.9}
+      />
     </g>
   );
 
   const brow = (ex: number, side: "left" | "right") => {
-    const dir = side === "left" ? -1 : 1;
+    const outerX = side === "left" ? ex - eyeRx * 1.15 : ex + eyeRx * 1.15;
+    const innerX = side === "left" ? ex + eyeRx * 0.95 : ex - eyeRx * 0.95;
+    const width = Math.max(s * 0.26, 1.5);
+
     if (mood === "angry") {
-      const x0 = ex - dir * eyeRx * 1.1;
-      const x1 = ex + dir * eyeRx * 0.9;
-      const yInner = cy - eyeRy * 1.5;
-      const yOuter = cy - eyeRy * 0.6;
-      // Slanted "V" brows pointing down toward the nose bridge.
-      const innerX = side === "left" ? x1 : x0;
-      const outerX = side === "left" ? x0 : x1;
+      // Slanted brows driving down toward the nose bridge.
       return (
         <line
-          key={ex}
+          key={`brow-${ex}`}
           x1={outerX}
-          y1={yOuter}
+          y1={cy - eyeRy * 0.75}
           x2={innerX}
-          y2={yInner}
+          y2={cy - eyeRy * 1.6}
           stroke={browColor}
-          strokeWidth={size * 0.28}
+          strokeWidth={width}
           strokeLinecap="round"
         />
       );
     }
+
+    if (mood === "worried") {
+      // Inner ends lifted — the classic "uh oh" brow.
+      return (
+        <line
+          key={`brow-${ex}`}
+          x1={outerX}
+          y1={cy - eyeRy * 1.55}
+          x2={innerX}
+          y2={cy - eyeRy * 0.95}
+          stroke={browColor}
+          strokeWidth={width}
+          strokeLinecap="round"
+        />
+      );
+    }
+
     return (
       <path
-        key={ex}
-        d={`M ${ex - eyeRx} ${cy - eyeRy * 1.1} Q ${ex} ${
-          cy - eyeRy * 1.6
-        } ${ex + eyeRx} ${cy - eyeRy * 1.1}`}
+        key={`brow-${ex}`}
+        d={`M ${ex - eyeRx} ${cy - eyeRy * 1.15} Q ${ex} ${
+          cy - eyeRy * 1.75
+        } ${ex + eyeRx} ${cy - eyeRy * 1.15}`}
         fill="none"
         stroke={browColor}
-        strokeWidth={size * 0.22}
+        strokeWidth={width * 0.85}
         strokeLinecap="round"
       />
     );
   };
 
   return (
-    <g>
+    <g opacity={Math.min(appear * 2.5, 1)}>
       {eye(cx - spacing)}
       {eye(cx + spacing)}
       {brow(cx - spacing, "left")}

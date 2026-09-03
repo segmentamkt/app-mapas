@@ -1,4 +1,4 @@
-import { geoBounds, geoCentroid } from "d3-geo";
+import { geoArea, geoBounds, geoCentroid } from "d3-geo";
 
 export interface LonLatBox {
   minLon: number;
@@ -33,6 +33,36 @@ export function safeFeatureBox(f: unknown): LonLatBox {
 
   const [cLon, cLat] = geoCentroid(f as never);
   return { minLon: cLon - 18, maxLon: cLon + 18, minLat: cLat - 12, maxLat: cLat + 12 };
+}
+
+/**
+ * Bounds of a country's *main landmass* rather than every scrap of territory
+ * it owns. Framing on the full geometry makes the camera pull back to fit
+ * Alaska when zooming on the US, the Galápagos for Ecuador, Easter Island for
+ * Chile, or Russia's tail across the antimeridian — so the country itself ends
+ * up tiny. Picking the single largest polygon gives the framing a viewer
+ * actually expects.
+ */
+export function mainlandBox(f: unknown): LonLatBox {
+  const geometry = (f as { geometry?: { type?: string; coordinates?: unknown[] } })
+    .geometry;
+
+  if (geometry?.type === "MultiPolygon" && Array.isArray(geometry.coordinates)) {
+    let best: LonLatBox | null = null;
+    let bestArea = -1;
+
+    for (const coordinates of geometry.coordinates) {
+      const polygon = { type: "Polygon", coordinates } as never;
+      const area = geoArea(polygon);
+      if (area > bestArea) {
+        bestArea = area;
+        best = safeFeatureBox(polygon);
+      }
+    }
+    if (best) return best;
+  }
+
+  return safeFeatureBox(f);
 }
 
 export function unionBoxes(boxes: LonLatBox[]): LonLatBox {

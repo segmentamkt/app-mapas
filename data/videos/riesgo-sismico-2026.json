@@ -1,7 +1,10 @@
 {
   "id": "riesgo-sismico-2026",
-  "title": "Terremotos 2026: ¿qué países corren más riesgo?",
+  "title": "Terremotos 2026:\n¿qué países corren más riesgo?",
+  "subtitle": "Riesgo según ubicación en zonas de falla activas · 2026 ya suma 11 sismos de magnitud 7+",
   "region": "world",
+  "cameraMode": "zoom",
+  "showEyes": true,
   "categories": {
     "alto": { "label": "ALTO RIESGO", "color": "#e74c3c", "mood": "angry" },
     "bajo": { "label": "BAJO RIESGO", "color": "#2ecc71", "mood": "calm" }

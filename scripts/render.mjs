@@ -45,6 +45,9 @@ const args = [
   "MapVideo",
   outPath,
   `--props=${propsPath}`,
+  // The camera moves constantly, so the default quality setting produces
+  // very large files; 26 keeps them a few MB without visible degradation.
+  "--crf=26",
 ];
 if (browserExecutable) {
   args.push(`--browser-executable=${browserExecutable}`);

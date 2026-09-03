@@ -11,14 +11,16 @@ import {
   WORLD_BOX,
   boxToPolygonFeature,
   lerpBox,
+  mainlandBox,
   padBox,
   safeFeatureBox,
   unionBoxes,
 } from "../lib/camera";
+import { Eyes } from "./Eyes";
 
-// Antarctica is included in the topojson but its landmass at extreme
-// southern latitudes forces Mercator to zoom out so far that every other
-// country looks tiny, so it's dropped entirely rather than rendered.
+// Antarctica is in the topojson but its landmass at extreme southern
+// latitudes forces Mercator to zoom out until every other country looks
+// tiny, so it is dropped rather than rendered.
 const EXCLUDED_CCA3 = new Set(["ATA"]);
 
 interface CountryFeature {
@@ -34,7 +36,10 @@ interface WorldMapProps {
   height: number;
 }
 
-const PADDING_PX = 24;
+const PADDING_PX = 20;
+const OCEAN = "#0f304a";
+const LAND_UNCLASSIFIED = "#33506a";
+const BORDER = "#0b1620";
 
 export const WorldMap: React.FC<WorldMapProps> = ({
   config,
@@ -43,14 +48,17 @@ export const WorldMap: React.FC<WorldMapProps> = ({
   height,
 }) => {
   const isWorld = config.region.toLowerCase() === "world";
+  const cameraMode = config.cameraMode ?? "zoom";
 
-  const { features, regionBox, keyframeBoxes } = useMemo(() => {
+  const { features, featureByCca3, regionBox, keyframeBoxes } = useMemo(() => {
     const topoObjects = (worldTopo as { objects: Record<string, unknown> })
       .objects;
     const geo = feature(
       worldTopo as never,
       topoObjects.countries as never
-    ) as unknown as { features: Array<{ id: string; geometry: GeoJSON.Geometry }> };
+    ) as unknown as {
+      features: Array<{ id: string; geometry: GeoJSON.Geometry }>;
+    };
 
     const withCca3: CountryFeature[] = geo.features
       .map((f) => ({ ...f, cca3: ccn3ToCca3(String(f.id)) }))
@@ -68,24 +76,22 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     const featureByCca3 = new Map<string, CountryFeature>();
     for (const f of withCca3) if (f.cca3) featureByCca3.set(f.cca3, f);
 
-    // keyframeBoxes[0] = whole region; keyframeBoxes[i] (i>=1) = padded
-    // bounds around revealOrder[i-1], the box the camera lands on once
-    // that country reveals.
+    // keyframeBoxes[0] = the establishing shot; keyframeBoxes[i] (i>=1) is
+    // where the camera lands when revealOrder[i-1] reveals.
     const keyframeBoxes: LonLatBox[] = [regionBox];
-    if (!isWorld) {
-      for (const cca3 of config.revealOrder) {
-        const f = featureByCca3.get(cca3);
-        if (!f) {
-          keyframeBoxes.push(regionBox);
-          continue;
-        }
-        keyframeBoxes.push(padBox(safeFeatureBox(f), 2.2, 10, 130, 70));
+    for (const cca3 of config.revealOrder) {
+      const f = featureByCca3.get(cca3);
+      if (!f) {
+        keyframeBoxes.push(regionBox);
+        continue;
       }
+      const zoom = config.scenes?.[cca3]?.zoom ?? 1;
+      keyframeBoxes.push(padBox(mainlandBox(f), 2.4 / zoom, 9, 120, 65));
     }
 
-    return { features: withCca3, regionBox, keyframeBoxes, featureByCca3 };
+    return { features: withCca3, featureByCca3, regionBox, keyframeBoxes };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config.region, config.revealOrder, config.countries]);
+  }, [config.region, config.revealOrder, config.scenes, isWorld]);
 
   const focus = focusStateAt(config, frame);
   const revealedSet = useMemo(
@@ -93,23 +99,17 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     [config, frame]
   );
 
-  // World-scoped videos span every continent, so per-country zoom would mean
-  // wild jumps and, for countries with far-flung territory (the US with
-  // Alaska, say), a camera window that reaches deep into Mercator's
-  // polar distortion. Keep those on one static, well-fit world view and
-  // reserve the travel/zoom camera for regional videos, where every
-  // country sits in a similar, moderate latitude band.
   const camBox = useMemo(() => {
-    if (isWorld || focus.index < 0) return regionBox;
+    if (cameraMode === "static" || focus.index < 0) return regionBox;
     return lerpBox(
       keyframeBoxes[focus.index],
       keyframeBoxes[focus.index + 1],
       focus.travelT
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isWorld, keyframeBoxes, focus.index, focus.travelT]);
+  }, [cameraMode, keyframeBoxes, focus.index, focus.travelT]);
 
-  const { projection, path } = useMemo(() => {
+  const path = useMemo(() => {
     const projection = geoMercator().fitExtent(
       [
         [PADDING_PX, PADDING_PX],
@@ -117,13 +117,58 @@ export const WorldMap: React.FC<WorldMapProps> = ({
       ],
       boxToPolygonFeature(camBox) as never
     );
-    return { projection, path: geoPath(projection) as GeoPath };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return geoPath(projection) as GeoPath;
   }, [camBox, width, height]);
+
+  // Eyes ride on the country currently in focus, sized from how big it
+  // actually is on screen so they never dwarf or vanish inside it.
+  const showEyes = config.showEyes ?? true;
+  const focusFeature = focus.cca3 ? featureByCca3.get(focus.cca3) : undefined;
+  const eyes = useMemo(() => {
+    if (!showEyes || !focusFeature || cameraMode === "static") return null;
+    const [[bx0, by0], [bx1, by1]] = path.bounds(focusFeature as never);
+    const bw = bx1 - bx0;
+    const bh = by1 - by0;
+    if (!Number.isFinite(bw) || !Number.isFinite(bh) || bw < 24 || bh < 24)
+      return null;
+
+    const [cx, cy] = path.centroid(focusFeature as never);
+    if (!Number.isFinite(cx) || !Number.isFinite(cy)) return null;
+
+    const size = Math.max(Math.min(Math.min(bw, bh) * 0.16, 54), 11);
+    const category = focus.cca3 ? config.countries[focus.cca3] : undefined;
+    const def = category ? config.categories[category] : undefined;
+    return {
+      cx,
+      cy: cy - size * 0.2,
+      size,
+      mood: focus.landed ? def?.mood ?? "calm" : ("neutral" as const),
+      color: def?.color ?? "#9fb4c7",
+      appear: focus.landed ? Math.min(focus.landT * 4, 1) : focus.travelT,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showEyes, focusFeature, path, focus.landed, focus.landT, focus.travelT, cameraMode]);
 
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
-      <rect x={0} y={0} width={width} height={height} fill="#1f4e79" />
+      <defs>
+        <radialGradient id="oceanGlow" cx="50%" cy="45%" r="75%">
+          <stop offset="0%" stopColor="#164866" />
+          <stop offset="100%" stopColor={OCEAN} />
+        </radialGradient>
+        <filter id="focusGlow" x="-25%" y="-25%" width="150%" height="150%">
+          <feDropShadow
+            dx="0"
+            dy="0"
+            stdDeviation="7"
+            floodColor="#ffffff"
+            floodOpacity="0.55"
+          />
+        </filter>
+      </defs>
+
+      <rect x={0} y={0} width={width} height={height} fill="url(#oceanGlow)" />
+
       {features.map((f, i) => {
         const d = path(f as never) || "";
         if (!d) return null;
@@ -131,15 +176,15 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         const category = cca3 ? config.countries[cca3] : undefined;
         const isRevealed = cca3 !== undefined && revealedSet.has(cca3);
         const info = cca3 ? getCountry(cca3) : undefined;
-        const clipId = `clip-${cca3 ?? i}`;
+        const isFocus = cca3 !== undefined && cca3 === focus.cca3;
 
         if (!category) {
           return (
             <path
               key={cca3 ?? i}
               d={d}
-              fill="#3a3a3a"
-              stroke="#0d1117"
+              fill={LAND_UNCLASSIFIED}
+              stroke={BORDER}
               strokeWidth={0.6}
             />
           );
@@ -151,8 +196,8 @@ export const WorldMap: React.FC<WorldMapProps> = ({
               key={cca3}
               d={d}
               fill={config.neutralColor}
-              stroke="#0d1117"
-              strokeWidth={0.6}
+              stroke={BORDER}
+              strokeWidth={isFocus ? 1.4 : 0.7}
             />
           );
         }
@@ -160,9 +205,11 @@ export const WorldMap: React.FC<WorldMapProps> = ({
         const [[bx0, by0], [bx1, by1]] = path.bounds(f as never);
         const bw = Math.max(bx1 - bx0, 1);
         const bh = Math.max(by1 - by0, 1);
+        const clipId = `clip-${cca3}`;
+        const def = config.categories[category];
 
         return (
-          <g key={cca3}>
+          <g key={cca3} filter={isFocus ? "url(#focusGlow)" : undefined}>
             <clipPath id={clipId}>
               <path d={d} />
             </clipPath>
@@ -188,10 +235,26 @@ export const WorldMap: React.FC<WorldMapProps> = ({
                 />
               </svg>
             </g>
-            <path d={d} fill="none" stroke="#0d1117" strokeWidth={0.6} />
+            <path
+              d={d}
+              fill="none"
+              stroke={isFocus ? def.color : BORDER}
+              strokeWidth={isFocus ? 2.2 : 0.8}
+            />
           </g>
         );
       })}
+
+      {eyes && (
+        <Eyes
+          cx={eyes.cx}
+          cy={eyes.cy}
+          size={eyes.size}
+          mood={eyes.mood}
+          color={eyes.color}
+          appear={eyes.appear}
+        />
+      )}
     </svg>
   );
 };

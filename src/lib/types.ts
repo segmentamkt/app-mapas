@@ -5,15 +5,29 @@ export interface CategoryDef {
   color: string;
   /**
    * Controls the cartoon eyes drawn on the currently-focused country once it
-   * lands in this category. "angry" = slanted red eyebrows (e.g. banned /
-   * prohibited categories), "calm" = soft rounded eyebrows (default).
+   * lands in this category. "angry" = slanted brows (banned / prohibited /
+   * high-risk categories), "worried" = raised inner brows, "calm" = soft
+   * rounded brows (default).
    */
-  mood?: "angry" | "calm";
+  mood?: "angry" | "worried" | "calm";
+}
+
+/** Optional per-country overrides for pacing and framing. */
+export interface SceneOverride {
+  /** Seconds this country's scene lasts (defaults to timing.perCountrySeconds). */
+  seconds?: number;
+  /**
+   * How tight the camera closes in, relative to the default framing.
+   * >1 zooms in (2 = twice as close), <1 pulls back.
+   */
+  zoom?: number;
 }
 
 export interface VideoConfig {
   id: string;
   title: string;
+  /** Optional smaller line under the title (source, date, caveat). */
+  subtitle?: string;
   /**
    * Which part of the world to frame the camera on.
    * "world" shows every country. Any other value is matched against each
@@ -21,7 +35,14 @@ export interface VideoConfig {
    * e.g. "South America", "Europe", "Africa".
    */
   region: string;
-  /** The two (or more) buckets a country can fall into. */
+  /**
+   * "zoom" (default) travels and zooms into each country as it is revealed.
+   * "static" holds one fixed view of the whole region for the entire video.
+   */
+  cameraMode?: "zoom" | "static";
+  /** Draw cartoon eyes on the country currently in focus. Defaults to true. */
+  showEyes?: boolean;
+  /** The buckets a country can fall into (2 or more are supported). */
   categories: Record<CategoryKey, CategoryDef>;
   /** Category shown for a country before it has been revealed. */
   neutralColor: string;
@@ -34,6 +55,8 @@ export interface VideoConfig {
    * sidebar/progress bar).
    */
   revealOrder: string[];
+  /** Optional per-country pacing/framing overrides, keyed by cca3. */
+  scenes?: Record<string, SceneOverride>;
   timing: {
     fps: number;
     introSeconds: number;
