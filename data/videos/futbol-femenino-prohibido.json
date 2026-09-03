@@ -1,0 +1,60 @@
+{
+  "id": "futbol-femenino-prohibido",
+  "title": "¿Dónde está PROHIBIDO el fútbol femenino?",
+  "region": "world",
+  "categories": {
+    "permitido": { "label": "PERMITIDO", "color": "#2ecc71", "mood": "calm" },
+    "prohibido": { "label": "PROHIBIDO", "color": "#e74c3c", "mood": "angry" }
+  },
+  "neutralColor": "#e9e9e9",
+  "countries": {
+    "USA": "permitido",
+    "BRA": "permitido",
+    "DEU": "permitido",
+    "FRA": "permitido",
+    "ESP": "permitido",
+    "JPN": "permitido",
+    "NGA": "permitido",
+    "MEX": "permitido",
+    "ARG": "permitido",
+    "AUS": "permitido",
+    "CAN": "permitido",
+    "NLD": "permitido",
+    "SWE": "permitido",
+    "NOR": "permitido",
+    "CHN": "permitido",
+    "KOR": "permitido",
+    "IND": "permitido",
+    "COL": "permitido",
+    "ZAF": "permitido",
+    "AFG": "prohibido"
+  },
+  "revealOrder": [
+    "USA",
+    "BRA",
+    "DEU",
+    "FRA",
+    "ESP",
+    "JPN",
+    "NGA",
+    "MEX",
+    "ARG",
+    "AUS",
+    "CAN",
+    "NLD",
+    "SWE",
+    "NOR",
+    "CHN",
+    "KOR",
+    "IND",
+    "COL",
+    "ZAF",
+    "AFG"
+  ],
+  "timing": {
+    "fps": 30,
+    "introSeconds": 1,
+    "perCountrySeconds": 1.8,
+    "outroSeconds": 2.5
+  }
+}

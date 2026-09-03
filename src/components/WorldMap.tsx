@@ -7,7 +7,6 @@ import { ccn3ToCca3, matchesRegion, getCountry } from "../lib/countries";
 import { VideoConfig } from "../lib/types";
 import { focusStateAt, revealedCountAt } from "../lib/timeline";
 import { LonLatBox, boxToPolygonFeature, lerpBox, padBox } from "../lib/camera";
-import { Eyes } from "./Eyes";
 
 interface CountryFeature {
   id: string;
@@ -106,29 +105,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [camBox, width, height]);
 
-  const focusedFeature = focus.cca3
-    ? features.find((f) => f.cca3 === focus.cca3)
-    : undefined;
-  const focusCenter = focusedFeature ? path.centroid(focusedFeature as never) : null;
-  const focusBounds = focusedFeature ? path.bounds(focusedFeature as never) : null;
-  const focusCategory = focus.cca3 ? config.countries[focus.cca3] : undefined;
-  const focusMood = focus.landed
-    ? config.categories[focusCategory ?? ""]?.mood ?? "calm"
-    : "neutral";
-  const focusColor = config.categories[focusCategory ?? ""]?.color ?? "#2c3e50";
-  const eyeSize = focusBounds
-    ? Math.max(
-        Math.min(
-          Math.min(
-            focusBounds[1][0] - focusBounds[0][0],
-            focusBounds[1][1] - focusBounds[0][1]
-          ) * 0.18,
-          46
-        ),
-        14
-      )
-    : 20;
-
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
       <rect x={0} y={0} width={width} height={height} fill="#1f4e79" />
@@ -188,15 +164,6 @@ export const WorldMap: React.FC<WorldMapProps> = ({
           </g>
         );
       })}
-      {focusCenter && (
-        <Eyes
-          cx={focusCenter[0]}
-          cy={focusCenter[1]}
-          size={eyeSize}
-          mood={focusMood}
-          color={focusColor}
-        />
-      )}
     </svg>
   );
 };
