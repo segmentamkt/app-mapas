@@ -167,14 +167,26 @@ export const WorldMap: React.FC<WorldMapProps> = ({
               <path d={d} />
             </clipPath>
             <g clipPath={`url(#${clipId})`}>
-              <image
-                href={staticFile(`flags/${info.cca2.toLowerCase()}.svg`)}
+              {/* A nested <svg> with its own viewBox handles "cover" cropping
+                  far more reliably across renderers than preserveAspectRatio
+                  on an <image> pointing at another SVG (which left tall,
+                  narrow countries like Chile only partly covered). */}
+              <svg
                 x={bx0}
                 y={by0}
                 width={bw}
                 height={bh}
+                viewBox="0 0 640 480"
                 preserveAspectRatio="xMidYMid slice"
-              />
+              >
+                <image
+                  href={staticFile(`flags/${info.cca2.toLowerCase()}.svg`)}
+                  x={0}
+                  y={0}
+                  width={640}
+                  height={480}
+                />
+              </svg>
             </g>
             <path d={d} fill="none" stroke="#0d1117" strokeWidth={0.6} />
           </g>
