@@ -1,37 +1,42 @@
 import React, { useMemo } from "react";
-import { geoMercator, geoPath } from "d3-geo";
+import { geoMercator, geoPath, geoBounds, GeoPath } from "d3-geo";
 import { feature } from "topojson-client";
-// @ts-expect-error - no type declarations shipped for this JSON package
+import { staticFile } from "remotion";
 import worldTopo from "world-atlas/countries-110m.json";
-import { ccn3ToCca3, matchesRegion } from "../lib/countries";
+import { ccn3ToCca3, matchesRegion, getCountry } from "../lib/countries";
+import { VideoConfig } from "../lib/types";
+import { focusStateAt, revealedCountAt } from "../lib/timeline";
+import { LonLatBox, boxToPolygonFeature, lerpBox, padBox } from "../lib/camera";
+import { Eyes } from "./Eyes";
 
 interface CountryFeature {
   id: string;
   cca3?: string;
-  geometry: unknown;
+  geometry: GeoJSON.Geometry;
 }
 
 interface WorldMapProps {
-  region: string;
+  config: VideoConfig;
+  frame: number;
   width: number;
   height: number;
-  colorForCca3: (cca3: string) => string;
 }
 
+const PADDING_PX = 24;
+
 export const WorldMap: React.FC<WorldMapProps> = ({
-  region,
+  config,
+  frame,
   width,
   height,
-  colorForCca3,
 }) => {
-  const { paths } = useMemo(() => {
+  const { features, regionBox, keyframeBoxes } = useMemo(() => {
     const topoObjects = (worldTopo as { objects: Record<string, unknown> })
       .objects;
     const geo = feature(
       worldTopo as never,
       topoObjects.countries as never
-      // topojson-client's types are loose; this returns a FeatureCollection.
-    ) as unknown as { features: Array<{ id: string; geometry: unknown }> };
+    ) as unknown as { features: Array<{ id: string; geometry: GeoJSON.Geometry }> };
 
     const withCca3: CountryFeature[] = geo.features.map((f) => ({
       ...f,
@@ -39,40 +44,158 @@ export const WorldMap: React.FC<WorldMapProps> = ({
     }));
 
     const inRegion =
-      region.toLowerCase() === "world"
+      config.region.toLowerCase() === "world"
         ? withCca3
-        : withCca3.filter((f) => f.cca3 && matchesRegion(f.cca3, region));
+        : withCca3.filter((f) => f.cca3 && matchesRegion(f.cca3, config.region));
 
     const fitFeatures = inRegion.length > 0 ? inRegion : withCca3;
+    const [[minLon, minLat], [maxLon, maxLat]] = geoBounds({
+      type: "FeatureCollection",
+      features: fitFeatures,
+    } as never);
+    const regionBox: LonLatBox = { minLon, minLat, maxLon, maxLat };
 
-    const projection = geoMercator().fitSize(
-      [width, height],
-      { type: "FeatureCollection", features: fitFeatures } as never
-    );
-    const path = geoPath(projection);
+    const featureByCca3 = new Map<string, CountryFeature>();
+    for (const f of withCca3) if (f.cca3) featureByCca3.set(f.cca3, f);
 
-    return {
-      paths: withCca3.map((f) => ({
-        cca3: f.cca3,
-        d: path(f as never) || "",
-      })),
-    };
+    // keyframeBoxes[0] = whole region; keyframeBoxes[i] (i>=1) = padded
+    // bounds around revealOrder[i-1], the box the camera lands on once
+    // that country reveals.
+    const keyframeBoxes: LonLatBox[] = [regionBox];
+    for (const cca3 of config.revealOrder) {
+      const f = featureByCca3.get(cca3);
+      if (!f) {
+        keyframeBoxes.push(regionBox);
+        continue;
+      }
+      const [[lo0, la0], [lo1, la1]] = geoBounds(f as never);
+      keyframeBoxes.push(
+        padBox({ minLon: lo0, minLat: la0, maxLon: lo1, maxLat: la1 }, 5, 8)
+      );
+    }
+
+    return { features: withCca3, regionBox, keyframeBoxes, featureByCca3 };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [region, width, height]);
+  }, [config.region, config.revealOrder, config.countries]);
+
+  const focus = focusStateAt(config, frame);
+  const revealedSet = useMemo(
+    () => new Set(config.revealOrder.slice(0, revealedCountAt(config, frame))),
+    [config, frame]
+  );
+
+  const camBox = useMemo(() => {
+    if (focus.index < 0) return regionBox;
+    return lerpBox(
+      keyframeBoxes[focus.index],
+      keyframeBoxes[focus.index + 1],
+      focus.travelT
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [keyframeBoxes, focus.index, focus.travelT]);
+
+  const { projection, path } = useMemo(() => {
+    const projection = geoMercator().fitExtent(
+      [
+        [PADDING_PX, PADDING_PX],
+        [width - PADDING_PX, height - PADDING_PX],
+      ],
+      boxToPolygonFeature(camBox) as never
+    );
+    return { projection, path: geoPath(projection) as GeoPath };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [camBox, width, height]);
+
+  const focusedFeature = focus.cca3
+    ? features.find((f) => f.cca3 === focus.cca3)
+    : undefined;
+  const focusCenter = focusedFeature ? path.centroid(focusedFeature as never) : null;
+  const focusBounds = focusedFeature ? path.bounds(focusedFeature as never) : null;
+  const focusCategory = focus.cca3 ? config.countries[focus.cca3] : undefined;
+  const focusMood = focus.landed
+    ? config.categories[focusCategory ?? ""]?.mood ?? "calm"
+    : "neutral";
+  const focusColor = config.categories[focusCategory ?? ""]?.color ?? "#2c3e50";
+  const eyeSize = focusBounds
+    ? Math.max(
+        Math.min(
+          Math.min(
+            focusBounds[1][0] - focusBounds[0][0],
+            focusBounds[1][1] - focusBounds[0][1]
+          ) * 0.18,
+          46
+        ),
+        14
+      )
+    : 20;
 
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
       <rect x={0} y={0} width={width} height={height} fill="#1f4e79" />
-      {paths.map(({ cca3, d }, i) =>
-        d ? (
-          <path
-            key={cca3 ?? i}
-            d={d}
-            fill={cca3 ? colorForCca3(cca3) : "#3a3a3a"}
-            stroke="#0d1117"
-            strokeWidth={0.6}
-          />
-        ) : null
+      {features.map((f, i) => {
+        const d = path(f as never) || "";
+        if (!d) return null;
+        const cca3 = f.cca3;
+        const category = cca3 ? config.countries[cca3] : undefined;
+        const isRevealed = cca3 !== undefined && revealedSet.has(cca3);
+        const info = cca3 ? getCountry(cca3) : undefined;
+        const clipId = `clip-${cca3 ?? i}`;
+
+        if (!category) {
+          return (
+            <path
+              key={cca3 ?? i}
+              d={d}
+              fill="#3a3a3a"
+              stroke="#0d1117"
+              strokeWidth={0.6}
+            />
+          );
+        }
+
+        if (!isRevealed || !info) {
+          return (
+            <path
+              key={cca3}
+              d={d}
+              fill={config.neutralColor}
+              stroke="#0d1117"
+              strokeWidth={0.6}
+            />
+          );
+        }
+
+        const [[bx0, by0], [bx1, by1]] = path.bounds(f as never);
+        const bw = Math.max(bx1 - bx0, 1);
+        const bh = Math.max(by1 - by0, 1);
+
+        return (
+          <g key={cca3}>
+            <clipPath id={clipId}>
+              <path d={d} />
+            </clipPath>
+            <g clipPath={`url(#${clipId})`}>
+              <image
+                href={staticFile(`flags/${info.cca2.toLowerCase()}.svg`)}
+                x={bx0}
+                y={by0}
+                width={bw}
+                height={bh}
+                preserveAspectRatio="xMidYMid slice"
+              />
+            </g>
+            <path d={d} fill="none" stroke="#0d1117" strokeWidth={0.6} />
+          </g>
+        );
+      })}
+      {focusCenter && (
+        <Eyes
+          cx={focusCenter[0]}
+          cy={focusCenter[1]}
+          size={eyeSize}
+          mood={focusMood}
+          color={focusColor}
+        />
       )}
     </svg>
   );

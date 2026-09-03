@@ -3,6 +3,12 @@ export type CategoryKey = string;
 export interface CategoryDef {
   label: string;
   color: string;
+  /**
+   * Controls the cartoon eyes drawn on the currently-focused country once it
+   * lands in this category. "angry" = slanted red eyebrows (e.g. banned /
+   * prohibited categories), "calm" = soft rounded eyebrows (default).
+   */
+  mood?: "angry" | "calm";
 }
 
 export interface VideoConfig {

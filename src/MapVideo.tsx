@@ -1,7 +1,6 @@
-import React, { useMemo } from "react";
+import React from "react";
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
 import { VideoConfig } from "./lib/types";
-import { revealedCountAt } from "./lib/timeline";
 import { WorldMap } from "./components/WorldMap";
 import { ProgressBar } from "./components/ProgressBar";
 import { Counters } from "./components/Counters";
@@ -10,18 +9,6 @@ import { Sidebar } from "./components/Sidebar";
 export const MapVideo: React.FC<{ config: VideoConfig }> = ({ config }) => {
   const frame = useCurrentFrame();
   const { width, height } = useVideoConfig();
-
-  const revealedSet = useMemo(() => {
-    const n = revealedCountAt(config, frame);
-    return new Set(config.revealOrder.slice(0, n));
-  }, [config, frame]);
-
-  const colorForCca3 = (cca3: string): string => {
-    const category = config.countries[cca3];
-    if (!category) return "#3a3a3a"; // not part of this video's dataset
-    if (!revealedSet.has(cca3)) return config.neutralColor;
-    return config.categories[category].color;
-  };
 
   const mapWidth = Math.round(width * 0.74);
   const mapHeight = height - 210;
@@ -61,10 +48,10 @@ export const MapVideo: React.FC<{ config: VideoConfig }> = ({ config }) => {
 
       <div style={{ position: "absolute", top: 180, left: 20 }}>
         <WorldMap
-          region={config.region}
+          config={config}
+          frame={frame}
           width={mapWidth}
           height={mapHeight}
-          colorForCca3={colorForCca3}
         />
       </div>
 
